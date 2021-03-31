@@ -4,78 +4,49 @@ from bs4 import BeautifulSoup as bs
 import time
 import random
 import lxml
+from stdiomask import getpass
 
 header = {
     "accept-ranges": "bytes",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.190 Safari/537.36",
 }
 
+followers = 1  # индекс числа подписчиков
+following = 2  # индекс числа подписок пользователя
+
 
 # Авторизация
 def authorize(driver):
-    username = input()
-    password = input()
+    username = input('Введите логин: ')
+    password = getpass(prompt='Введите пароль: ', mask='*')
     driver.get('https://www.instagram.com')
     time.sleep(5)
     driver.find_element_by_name("username").send_keys(username)
     driver.find_element_by_name("password").send_keys(password)
     driver.execute_script("document.getElementsByClassName('sqdOP  L3NKy   y3zKF     ')[0].click()")
-    time.sleep(10)
+    time.sleep(8)
     driver.execute_script("document.getElementsByClassName('sqdOP  L3NKy   y3zKF     ')[0].click()")
-    time.sleep(10)
+    time.sleep(8)
     driver.execute_script("document.getElementsByClassName('aOOlW   HoLwm ')[0].click()")
 
 
-# Получение списка подписчиков
-def get_follower(driver):
+# Получение списка подписчиков и подписок
+def get_follow(driver, index=None):
+    if index not in (1, 2):
+        return "index должен равняться 1 (подписчики) или 2 (на кого ты подписан)"
     driver.get('https://www.instagram.com/the_vladcha')
-    time.sleep(2)
-    driver.execute_script("document.getElementsByClassName('-nal3 ')[1].click()")
     time.sleep(1)
-    followers_list = []
-    scroll = True
+    followers_number = int(bs(driver.page_source, 'lxml').find_all(class_='g47SY')[index].string)
+    driver.execute_script(f"document.getElementsByClassName('-nal3 ')[{index}].click()")
+    time.sleep(1)
+    folls = []
     element = driver.find_elements_by_class_name('isgrP')[-1]
-    while scroll:
-        last_height = driver.find_elements_by_class_name('FPmhX')[-1]
-
+    while len(folls) != followers_number:
         driver.execute_script('arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;', element)
-        driver.execute_script('arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;', element)
-        driver.execute_script('arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;', element)
-        time.sleep(2)
-        new_height = driver.find_elements_by_class_name('FPmhX')[-1]
-        if new_height == last_height:
-            scroll = False
-    content = bs(driver.page_source, 'lxml')
-    folls = content.find_all(class_='FPmhX')
-    for foll in folls:
-        followers_list.append(foll.get('title'))
+        content = bs(driver.page_source, 'lxml')
+        folls = content.find_all(class_='FPmhX')
+    followers_list = [i.get('title') for i in folls]
     return followers_list
-
-
-# Получение списка, на кого Вы подписаны
-def get_following(driver):
-    driver.get('https://www.instagram.com/the_vladcha')
-    time.sleep(2)
-    driver.execute_script("document.getElementsByClassName('-nal3 ')[2].click()")
-    time.sleep(1)
-    following_list = []
-    scroll = True
-    element = driver.find_elements_by_class_name('isgrP')[-1]
-    while scroll:
-        last_height = driver.find_elements_by_class_name('FPmhX')[-1]
-
-        driver.execute_script('arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;', element)
-        driver.execute_script('arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;', element)
-        driver.execute_script('arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;', element)
-        time.sleep(2)
-        new_height = driver.find_elements_by_class_name('FPmhX')[-1]
-        if new_height == last_height:
-            scroll = False
-    content = bs(driver.page_source, 'lxml')
-    folls = content.find_all(class_='FPmhX')
-    for foll in folls:
-        following_list.append(foll.get('title'))
-    return following_list
 
 
 # Число новых сообщений
@@ -185,12 +156,13 @@ driver = webdriver.Chrome(ChromeDriverManager().install())
 authorize(driver)
 # queries_text, messages_count = messages_count(driver)
 # stories_count = get_stories_count(driver)
-followers = get_follower(driver)
-following = get_following(driver)
+followers = get_follow(driver, index=followers)
+following = get_follow(driver, index=following)
 # watch_stories(driver)
 # scroll_recomendations(driver)
 # scroll_feed(driver)
 # scroll_explore(driver)
+driver.quit()
 
 # if queries_text is not None:
 #     print(queries_text)
