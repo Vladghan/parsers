@@ -5,6 +5,9 @@ import time
 import random
 import lxml
 from stdiomask import getpass
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 header = {
     "accept-ranges": "bytes",
@@ -18,30 +21,30 @@ following = 2  # индекс числа подписок пользовател
 # Авторизация
 def authorize(driver):
     username = input('Введите логин: ')
-    password = getpass(prompt='Введите пароль: ', mask='*')
+    # password = getpass(prompt='Введите пароль: ', mask='*')
+    password = input('Введите пароль: ')
+    driver.implicitly_wait(8)
     driver.get('https://www.instagram.com')
-    time.sleep(5)
     driver.find_element_by_name("username").send_keys(username)
     driver.find_element_by_name("password").send_keys(password)
     driver.execute_script("document.getElementsByClassName('sqdOP  L3NKy   y3zKF     ')[0].click()")
-    time.sleep(8)
+    WebDriverWait(driver, 8).until(EC.element_to_be_clickable((By.CSS_SELECTOR, '.sqdOP.L3NKy.y3zKF')))
     driver.execute_script("document.getElementsByClassName('sqdOP  L3NKy   y3zKF     ')[0].click()")
-    time.sleep(8)
+    WebDriverWait(driver, 8).until(EC.element_to_be_clickable((By.CSS_SELECTOR, '.aOOlW.HoLwm')))
     driver.execute_script("document.getElementsByClassName('aOOlW   HoLwm ')[0].click()")
 
 
 # Получение списка подписчиков и подписок
 def get_follow(driver, index=None):
+    driver.implicitly_wait(1)
     if index not in (1, 2):
         return "index должен равняться 1 (подписчики) или 2 (на кого ты подписан)"
     driver.get('https://www.instagram.com/the_vladcha')
-    time.sleep(1)
     followers_number = int(bs(driver.page_source, 'lxml').find_all(class_='g47SY')[index].string)
     driver.execute_script(f"document.getElementsByClassName('-nal3 ')[{index}].click()")
-    time.sleep(1)
     folls = []
     element = driver.find_elements_by_class_name('isgrP')[-1]
-    while len(folls) != followers_number:
+    while len(folls) < followers_number:
         driver.execute_script('arguments[0].scrollTop = arguments[0].scrollTop + arguments[0].offsetHeight;', element)
         content = bs(driver.page_source, 'lxml')
         folls = content.find_all(class_='FPmhX')
