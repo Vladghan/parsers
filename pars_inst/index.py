@@ -176,7 +176,7 @@ driver.quit()
 # print('Новых историй:', stories_count)
 
 super_users = ['coco_nady', 'p_photogram8', 'nikitadeft', 'illiahlad', 'valentin_hris', 'vitwai', 'balena_hair',
-               'brandonwoelfel', 'mrfreemax', 'polyaizderevki', 'spoontamer']
+               'brandonwoelfel', 'mrfreemax', 'polyaizderevki']
 rats = []
 print('Список предателей:')
 # Вычисление людей, не подписанных на меня ;)

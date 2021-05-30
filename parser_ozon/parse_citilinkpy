@@ -1,0 +1,141 @@
+import json
+import time
+
+import requests
+from bs4 import BeautifulSoup
+from django.core.management.base import BaseCommand
+from products.models import Category, Product
+import lxml
+from random import randint
+import httplib2
+
+from trainees_three.settings import MEDIA_ROOT, BROWSER_ACCEPT, BROWSER_USER_AGENT
+
+
+# Декоратор-счетчик
+def counter(func):
+    print("Начинаем")
+
+    def wrapper(self, *args, **kwargs):
+        wrapper.count += 1
+        rez = func(self, *args, **kwargs)
+        print(f"# Итерация {wrapper.count} записана...")
+        return rez
+
+    wrapper.count = 0
+    return wrapper
+
+
+class ParserCitilink:
+
+    def __init__(self):
+        self.url = 'https://www.citilink.ru/'
+        self.headers = {
+            "Accept": BROWSER_ACCEPT,
+            "User-Agent": BROWSER_USER_AGENT,
+        }
+
+    # def parser(self, url, file=str(randint(1, 1000))):
+    def parser(self, url):
+        req = requests.get(url, self.headers)
+        src = req.text
+        # i = file
+        # with open(f"/home/user2/PycharmProjects/project10/src/data/{i}.html", 'w', encoding='utf-8') as file:
+        #     file.write(src)
+        # with open(f"/home/user2/PycharmProjects/project10/src/data/{i}.html", encoding='utf-8') as file:
+        #     src = file.read()
+        soup = BeautifulSoup(src, 'lxml')
+        return soup
+
+    # Парсинг главной страницы
+    def get_global_categories(self):
+        # soup = self.parser(self.url, file='main')
+        soup = self.parser(self.url)
+        all_categories = soup.select('div.CatalogMenu__category-items a.CatalogMenu__category-item[data-title]')
+        if all_categories:
+            for category in all_categories:
+                title = category['data-title']
+                if Category.objects.filter(title=title).exists():
+                    cat = Category.objects.get(title=title)
+                else:
+                    cat = Category.objects.create(title=title)
+                    cat.save()
+                link = category.get('href')
+                self.get_categories(cat, link)
+
+    # Парсинг страницы категории
+    def get_categories(self, cat, url):
+        # soup = self.parser(url, file='cats')
+        soup = self.parser(url)
+        all_categories = soup.find_all('a', class_='CatalogCategoryMenu__category')
+        for category in all_categories:
+            title = category.string.strip()
+            if Category.objects.filter(title=title).exists():
+                new_cat = Category.objects.get(title=title)
+            else:
+                new_cat = Category.objects.create(title=title, parent=cat)
+                new_cat.save()
+            link = category.get('href')
+            self.get_products(new_cat, link)
+
+    # Парсинг товаров
+    def get_products(self, cat, url):
+        # soup = self.parser(url, file='page1')
+        soup = self.parser(url)
+        if soup.find_all('a', class_='CatalogCategoryMenu__category'):
+            self.get_categories(cat, url)
+        else:
+            pages = soup.find_all('a', class_='PaginationWidget__page')
+            if pages:
+                last_page = pages[-1].get('data-page')
+            else:
+                last_page = 1
+            for page in range(1, int(last_page) + 1):
+                if page != 1:
+                    # soup = self.parser(url + f"?p={page}", file=f'page{page}')
+                    soup = self.parser(url + f"?p={page}")
+                block_products = soup.find('div', class_='ProductCardCategoryList')
+                try:
+                    all_products = block_products.find_all('div', class_='product_data__gtm-js')
+                except AttributeError:
+                    print('Ошибка')
+                    continue
+                for product in all_products:
+                    self.save_products(product, cat)
+                print('Конец сета')
+                time.sleep(randint(2, 4))
+
+    # Сохранение товаров
+    @counter
+    def save_products(self, product, category):
+        data_params = product.get('data-params')
+        data_params = json.loads(data_params.replace("'", '"'))
+        title = data_params['shortName']
+        price = data_params['price']
+        if Product.objects.filter(title=title, price=price).exists() is False:
+            img_url = product.find('img').get('src')
+            img_name = img_url[img_url.rfind('/') + 1:]
+            img_path = MEDIA_ROOT + f'/products/{img_name}'
+
+            h = httplib2.Http('.cache')
+            response, content = h.request(img_url)
+            out = open(img_path, 'wb')
+            out.write(content)
+            out.close()
+            time.sleep(randint(1, 2))
+
+            new_product = Product.objects.create(
+                title=title,
+                price=price,
+                category=category,
+                image=img_path,
+            )
+            new_product.save()
+
+
+class Command(BaseCommand):
+    help = 'Парсинг citilink'
+
+    def handle(self, *args, **options):
+        p = ParserCitilink()
+        p.get_global_categories()
